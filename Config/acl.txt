@@ -1,0 +1,92 @@
+# Mosquitto ACL (Access Control List)
+# STATIC CONFIG - NEVER CHANGE AT RUNTIME
+#
+# Security model:
+# - Backend has wildcard access to all topics
+# - Devices use pattern matching with %u (username replacement)
+# - %u = MQTT username = device_id
+# - This ensures devices can ONLY access their own topics
+
+# ============================================================================
+# BACKEND SUPERUSER
+# ============================================================================
+
+# Backend admin user (Psk_admin) has full access to all topics
+user Psk_admin
+topic readwrite org/planetskool/#
+
+# Legacy backend user (for backward compatibility)
+user backend
+topic readwrite org/planetskool/#
+
+# ============================================================================
+# DEVICE PATTERN-BASED ACL
+# ============================================================================
+
+# Pattern syntax:
+# %u = MQTT username (device_id for our devices)
+# + = single-level wildcard
+# # = multi-level wildcard
+#
+# Topic structure: org/planetskool/{project}/{organization}/{device_id}/{channel}
+# Example: org/planetskool/bmi/school001/BMI-SCH001-D001/telemetry
+
+# Device WRITE permissions (publish to these topics)
+pattern write org/planetskool/+/+/%u/telemetry
+pattern write org/planetskool/+/+/%u/status
+pattern write org/planetskool/+/+/%u/ack
+
+# Device READ permissions (subscribe to these topics)
+pattern read org/planetskool/+/+/%u/command
+
+# ============================================================================
+# SECURITY EXPLANATION
+# ============================================================================
+
+# Example: Device with username "BMI-SCH001-D001"
+#
+# CAN publish to:
+#   org/planetskool/bmi/school001/BMI-SCH001-D001/telemetry  ✅
+#   org/planetskool/bmi/school001/BMI-SCH001-D001/status     ✅
+#   org/planetskool/bmi/school001/BMI-SCH001-D001/ack        ✅
+#
+# CAN subscribe to:
+#   org/planetskool/bmi/school001/BMI-SCH001-D001/command    ✅
+#
+# CANNOT publish to:
+#   org/planetskool/bmi/school001/BMI-SCH001-D002/telemetry  ❌ (different device_id)
+#   org/planetskool/bmi/school002/BMI-SCH001-D001/telemetry  ❌ (wrong org in topic)
+#
+# CANNOT subscribe to:
+#   org/planetskool/#                                         ❌ (wildcard denied)
+#   org/planetskool/bmi/school001/BMI-SCH001-D002/command    ❌ (different device_id)
+
+# ============================================================================
+# TOPIC CHANNEL MEANINGS
+# ============================================================================
+
+# telemetry - Sensor data from device to backend (fire-and-forget)
+# status    - Device health/connectivity (online/offline with LWT)
+# command   - Control messages from backend to device
+# ack       - Command acknowledgment from device to backend
+
+# ============================================================================
+# SCALING NOTES
+# ============================================================================
+
+# This ACL file scales to UNLIMITED devices because:
+# - Pattern matching handles all devices with one rule
+# - No per-device ACL entries needed
+# - Adding new device = just add to passwords.txt (no ACL change)
+# - Revoking device = remove from passwords.txt (no ACL change)
+
+# ============================================================================
+# MAINTENANCE
+# ============================================================================
+
+# This file should be:
+# ✅ Written once during initial setup
+# ✅ Version controlled
+# ✅ Deployed as-is to all environments
+# ❌ NEVER modified at runtime
+# ❌ NEVER changed per-device
